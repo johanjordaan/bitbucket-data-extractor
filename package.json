@@ -1,0 +1,14 @@
+{
+  "name": "bitbucket-data-extractor",
+  "version": "1.0.0",
+  "description": "",
+  "main": "extract.ls",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Johan Jordaan",
+  "license": "ISC",
+  "dependencies": {
+    "request": "^2.67.0"
+  }
+}
