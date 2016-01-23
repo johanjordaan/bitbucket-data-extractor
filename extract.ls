@@ -18,23 +18,25 @@ console.log "Extracting data for [#{USER}]"
 repo_handler = (json, lst) ->
    json.values |> _.map (item) ->
       lst.push do
-         name: item.name
-         size: item.size
-         uuid: item.uuid.replace(/{|}/g,"")
-         slug:  item.full_name.split(/\//)[1]
+         repo_name: item.name
+         repo_size: item.size
+         repo_uuid: item.uuid.replace(/{|}/g,"")
+         repo_slug:  item.full_name.split(/\//)[1]
 
-get_commit_handler = (id) ->
+get_commit_handler = (repo) ->
    commit_handler = (json, lst) ->
       json.values |> _.map (item) ->
-         lst.push do
-            id: id
+         commit = do
             hash: item.hash
             author: item.author.raw
             user_name: item.author.user?username
             user_display_name: item.author.user?display_name
             user_uuid: item.author.user?uuid
-            message: item.message
+            message: item.message.replace(/\n/g,"")
             date: item.date
+
+         commit <<< repo
+         lst.push commit
 
 
 getData = (url, auth, handler) ->
@@ -45,17 +47,16 @@ getData = (url, auth, handler) ->
          request url, 'auth':auth ,(error, response, body) ->
             if error?
                console.log error
-               reject err
+               reject error
             else
                jsonBody = JSON.parse body
 
                handler(jsonBody, lst)
 
-               #if jsonBody.next?
-               #   innerf(jsonBody.next, auth, handler)
-               #else
-               #   resolve(lst)
-               resolve(lst)
+               if jsonBody.next?
+                  innerf(jsonBody.next, auth, handler)
+               else
+                  resolve(lst)
 
       innerf url, auth
 
@@ -68,11 +69,11 @@ read { prompt: 'username: ' }, (er, username) ->
       .then (repos) ->
          ps = []
          repos |> _.each (item) ->
-            commit_handler = get_commit_handler item.uuid
-            ps.push getData "#{URL}/#{USER}/#{item.slug}/commits", auth, commit_handler
+            commit_handler = get_commit_handler item
+            ps.push getData "#{URL}/#{USER}/#{item.repo_slug}/commits", auth, commit_handler
 
          Promise.all ps
          .then (commits_list) ->
             commits = commits_list |> _.flatten
-            console.log commits
+            #console.log commits
             console.log commits.length
