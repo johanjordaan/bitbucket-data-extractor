@@ -9,6 +9,8 @@
   "author": "Johan Jordaan",
   "license": "ISC",
   "dependencies": {
+    "prelude-ls": "^1.1.2",
+    "read": "^1.0.7",
     "request": "^2.67.0"
   }
 }
