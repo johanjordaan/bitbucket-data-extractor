@@ -1,11 +1,13 @@
 _ = require 'prelude-ls'
 request = require 'request'
 read = require 'read'
+fs = require 'fs'
 
 URL = "https://api.bitbucket.org/2.0/repositories"
 USER =  process.argv[2]
-
 console.log "Extracting data for [#{USER}]"
+USER_URL = "#{URL}/#{USER}"
+
 
 #pagelen
 #size
@@ -15,16 +17,22 @@ console.log "Extracting data for [#{USER}]"
 #next
 #page
 
-repo_handler = (json, lst) ->
-   json.values |> _.map (item) ->
-      lst.push do
-         repo_name: item.name
-         repo_size: item.size
-         repo_uuid: item.uuid.replace(/{|}/g,"")
-         repo_slug:  item.full_name.split(/\//)[1]
+get_repo_handler =  ->
+   type: "repo"
+   handle: (json) ->
+      lst = []
+      json.values |> _.map (item) ->
+         lst.push do
+            repo_name: item.name
+            repo_size: item.size
+            repo_uuid: item.uuid.replace(/{|}/g,"")
+            repo_slug:  item.full_name.split(/\//)[1]
+      lst
 
-get_commit_handler = (repo) ->
-   commit_handler = (json, lst) ->
+get_commit_handler = (repo, cache) ->
+   type: "commit"
+   handle: (json) ->
+      lst = []
       json.values |> _.map (item) ->
          commit = do
             hash: item.hash
@@ -37,43 +45,129 @@ get_commit_handler = (repo) ->
 
          commit <<< repo
          lst.push commit
+      lst
 
-
-getData = (url, auth, handler) ->
+callCount = 0
+getData = (url, auth, cache, handler) ->
    new Promise (resolve, reject) ->
-      lst = []
-      innerf = (url,auth)->
-         console.log "Fetching #{url}"
-         request url, 'auth':auth ,(error, response, body) ->
-            if error?
-               console.log error
-               reject error
-            else
-               jsonBody = JSON.parse body
+      callCount :=  callCount + 1
+      console.log "[#{callCount}] [#{handler.type}] Fetching #{url} "
+      request url, 'auth':auth ,(error, response, body) ->
+         if error?
+            console.log error
+            reject error
+         else
+            jsonBody = JSON.parse body
 
-               handler(jsonBody, lst)
+            if jsonBody.error?
+               console.log jsonBody.error
+               reject jsonBody.error
+            else
+               url |> removeFromCache cache
 
                if jsonBody.next?
-                  innerf(jsonBody.next, auth, handler)
-               else
-                  resolve(lst)
+                  jsonBody.next |> addToCache cache, handler.type
 
-      innerf url, auth
+               resolve handler.handle(jsonBody)
 
-read { prompt: 'username: ' }, (er, username) ->
-   read { prompt: 'password: ', silent: true }, (er, password) ->
-      auth =
-         'user': username
-         'pass': password
-      getData "#{URL}/#{USER}", auth, repo_handler
-      .then (repos) ->
-         ps = []
-         repos |> _.each (item) ->
-            commit_handler = get_commit_handler item
-            ps.push getData "#{URL}/#{USER}/#{item.repo_slug}/commits", auth, commit_handler
+readCache = ->
+   new Promise (resolve, reject) ->
+      fs.readFile "./.cache", (err,data) ->
+         if err? && err.code != 'ENOENT'
+            reject err
+         else if err? && err.code == 'ENOENT'
+            console.log "Empty cache"
+            resolve []
+         else
+            data = JSON.parse(data)
+            console.log "Using [#{data.length}] item"
+            resolve data
 
-         Promise.all ps
-         .then (commits_list) ->
-            commits = commits_list |> _.flatten
-            #console.log commits
-            console.log commits.length
+saveCache = (cache) ->
+   new Promise (resolve, reject) ->
+      if cache.length > 0
+         console.log "Saving cache [#{cache.length}]"
+         fs.writeFile "./.cache", JSON.stringify(cache) , (err) ->
+            if err?
+               reject err
+            else
+               resolve!
+      else
+         fs.exists "./.cache", (exists) ->
+            if exists
+               console.log "Deleting cache"
+               fs.unlink "./.cache", (err) ->
+                  if err?
+                     reject err
+                  else
+                     resolve!
+
+processCache = (auth, cache) ->
+   new Promise (resolve, reject) ->
+      process = ->
+         if cache.length == 0
+            resolve!
+         else
+            item = cache.pop!
+            switch item.type
+            | 'repo' =>
+               getData item.url, auth, cache, get_repo_handler!
+               .then (repos) ->
+                  repos |> _.each (item) ->
+                     "#{USER_URL}/#{item.repo_slug}/commits" |> addToCache cache, "commit"
+                  process!
+            | 'commit' =>
+               getData item.url, auth, cache, get_commit_handler!
+               .then (commits)->
+                  #commits |> _.each (commit) -> 
+
+                  process!
+            | otherwise =>
+                  console.log "Cache type error"
+
+      process!
+
+removeFromCache = (cache, url) -->
+   index = _.find-index (item) ->
+      item.url == url
+
+   if index != -1
+      cache.splice index, 1
+
+addToCache = (cache, type, url) -->
+   cache.push { url:url, type:type }
+
+readCache!
+.then (cache) ->
+   read { prompt: 'username: ' }, (er, username) ->
+      read { prompt: 'password: ', silent: true }, (er, password) ->
+         auth = { 'user': username, 'pass': password}
+
+         # If the cache is empty then prime it with the initial url
+         #
+         if cache.length == 0
+            USER_URL |> addToCache cache, "repo"
+
+
+         processCache auth, cache
+         .then (count) ->
+            console.log 'The end...'
+            saveCache cache
+         .catch (error) ->
+            console.log 'Some error ...'
+            saveCache cache
+
+         #getData , auth, repo_handler
+         #.then (repos) ->
+
+
+         #ps = []
+         #repos |> _.each (item) ->
+         #   commit_handler = get_commit_handler item, cache
+         #   ps.push getData "#{URL}/#{USER}/#{item.repo_slug}/commits", auth, commit_handler
+         #
+         #Promise.all ps
+         #.then (commits_list) ->
+         #   commits = commits_list |> _.flatten
+         #   #console.log commits
+         #   console.log commits.length
