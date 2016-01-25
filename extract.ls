@@ -108,7 +108,7 @@ processCache = (auth, cache) ->
          if cache.length == 0
             resolve!
          else
-            item = cache.pop!
+            item = cache[0]
             switch item.type
             | 'repo' =>
                getData item.url, auth, cache, get_repo_handler!
@@ -119,16 +119,24 @@ processCache = (auth, cache) ->
             | 'commit' =>
                getData item.url, auth, cache, get_commit_handler!
                .then (commits)->
-                  #commits |> _.each (commit) -> 
+                  lines = commits |> _.map (commit) ->
+                     (commit |> _.values).join()
 
-                  process!
+                  str = lines.join("\n")
+
+                  fs.appendFile "./data.csv", str, (err) ->
+                     if err?
+                        console.log err
+                     else
+                        process!
             | otherwise =>
                   console.log "Cache type error"
+                  process!
 
       process!
 
 removeFromCache = (cache, url) -->
-   index = _.find-index (item) ->
+   index = cache |> _.find-index (item) ->
       item.url == url
 
    if index != -1
@@ -156,18 +164,3 @@ readCache!
          .catch (error) ->
             console.log 'Some error ...'
             saveCache cache
-
-         #getData , auth, repo_handler
-         #.then (repos) ->
-
-
-         #ps = []
-         #repos |> _.each (item) ->
-         #   commit_handler = get_commit_handler item, cache
-         #   ps.push getData "#{URL}/#{USER}/#{item.repo_slug}/commits", auth, commit_handler
-         #
-         #Promise.all ps
-         #.then (commits_list) ->
-         #   commits = commits_list |> _.flatten
-         #   #console.log commits
-         #   console.log commits.length
