@@ -39,7 +39,7 @@ get_commit_handler = (cache) ->
             author: item.author.raw
             user_name: item.author.user?username
             user_display_name: item.author.user?display_name
-            user_uuid: item.author.user?uuid
+            user_uuid: item.author.user?uuid?replace(/{|}/g,"")
             message: item.message.replace(/\n/g,"")
             date: item.date
             repo_name: item.repository.name
@@ -121,7 +121,7 @@ processCache = (auth, cache) ->
 
                   lines = repos |> _.map (repo) ->
                      (repo |> _.values).join()
-                  str = lines.join("\n")
+                  str = lines.join("\n") + "\n"
                   fs.appendFile "./repos.csv", str, (err) ->
                      if err?
                         console.log err
@@ -134,7 +134,7 @@ processCache = (auth, cache) ->
 
                   lines = commits |> _.map (commit) ->
                      (commit |> _.values).join()
-                  str = lines.join("\n")
+                  str = lines.join("\n") + "\n"
                   fs.appendFile "./commits.csv", str, (err) ->
                      if err?
                         console.log err
@@ -167,6 +167,15 @@ readCache!
          #
          if cache.length == 0
             USER_URL |> addToCache cache, "repo"
+
+            header = "hash,author,user_name,user_display_name,user_uuis,message,date,repo_name,repo_size,repo_uuid,repo_slug\n"
+            fs.writeFile "./commits.csv", header, (err) ->
+               if err?
+                  console.log err
+            header = "repo_name,repo_size,repo_uuid,repo_slug\n"
+            fs.writeFile "./repos.csv", header, (err) ->
+               if err?
+                  console.log err
 
 
          processCache auth, cache
