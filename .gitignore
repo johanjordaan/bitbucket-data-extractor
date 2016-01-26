@@ -1,4 +1,5 @@
 node_modules
 settings.ls
-data.csv
+repos.csv
+commits.csv
 .cache

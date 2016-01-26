@@ -29,7 +29,7 @@ get_repo_handler =  ->
             repo_slug:  item.full_name.split(/\//)[1]
       lst
 
-get_commit_handler = (repo, cache) ->
+get_commit_handler = (cache) ->
    type: "commit"
    handle: (json) ->
       lst = []
@@ -42,8 +42,11 @@ get_commit_handler = (repo, cache) ->
             user_uuid: item.author.user?uuid
             message: item.message.replace(/\n/g,"")
             date: item.date
+            repo_name: item.repository.name
+            repo_size: item.repository.size
+            repo_uuid: item.repository.uuid.replace(/{|}/g,"")
+            repo_slug:  item.repository.full_name.split(/\//)[1]
 
-         commit <<< repo
          lst.push commit
       lst
 
@@ -115,20 +118,29 @@ processCache = (auth, cache) ->
                .then (repos) ->
                   repos |> _.each (item) ->
                      "#{USER_URL}/#{item.repo_slug}/commits" |> addToCache cache, "commit"
-                  process!
-            | 'commit' =>
-               getData item.url, auth, cache, get_commit_handler!
-               .then (commits)->
-                  lines = commits |> _.map (commit) ->
-                     (commit |> _.values).join()
 
+                  lines = repos |> _.map (repo) ->
+                     (repo |> _.values).join()
                   str = lines.join("\n")
-
-                  fs.appendFile "./data.csv", str, (err) ->
+                  fs.appendFile "./repos.csv", str, (err) ->
                      if err?
                         console.log err
                      else
                         process!
+
+            | 'commit' =>
+               getData item.url, auth, cache, get_commit_handler!
+               .then (commits)->
+
+                  lines = commits |> _.map (commit) ->
+                     (commit |> _.values).join()
+                  str = lines.join("\n")
+                  fs.appendFile "./commits.csv", str, (err) ->
+                     if err?
+                        console.log err
+                     else
+                        process!
+
             | otherwise =>
                   console.log "Cache type error"
                   process!
