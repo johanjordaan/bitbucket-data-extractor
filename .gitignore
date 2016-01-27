@@ -3,3 +3,5 @@ settings.ls
 repos.csv
 commits.csv
 .cache
+.RData
+.Rhistory

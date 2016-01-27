@@ -40,7 +40,7 @@ get_commit_handler = (cache) ->
             user_name: item.author.user?username
             user_display_name: item.author.user?display_name
             user_uuid: item.author.user?uuid?replace(/{|}/g,"")
-            message: "\"#{item.message.replace(/\n/g,"").replace("\"","'")}\""
+            message: "\"#{item.message.replace(/\n/g,"").replace(/"/g,"'")}\""
             date: item.date
             repo_name: item.repository.name
             repo_size: item.repository.size
