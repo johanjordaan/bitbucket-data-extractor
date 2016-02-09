@@ -43,7 +43,7 @@ extractInitial <- function(str) {
 commits <- read.csv("commits.csv")
 commits$user <- commits$author
 commits$user <- gsub(" <.*$","",commits$user)    # Kill the email part
-commits$user <- gsub("[_@-]","",commits$user)    # Kill special chacracters
+commits$user <- gsub("[=_@-]","",commits$user)    # Kill special chacracters
 commits$user <- gsub("[ ]+"," ",commits$user)     # Replace multiple ws with a single space
 
 users <- unique(commits$user)
@@ -72,17 +72,26 @@ DT <- data.table(  variant_1=variant_1
                 )
 SIM <- data.table()
 
-s = nrow(DT)
-for(i in 1:(s-1)) {
-   for(j in (i+1):s) {
-      mins <- apply(m,2,min)  # by col
+n = nrow(DT)
+res <- matrix(rep(1000,n*n),n,n)
+for(i in 1:(n-1)) {
+   for(j in (i+1):n) {
       m <- stringdistmatrix(as.character(DT[i,]),as.character(DT[j,]),method="lv")
-      print("--------")
-      print(i)
-      print(j)
-      print(mean(mins))
+      mins <- apply(m,2,min)  # by col
+      minsMean <- mean(mins)
+      res[i,j] <- minsMean
+      res[j,i] <- minsMean
    }
 }
+
+grpScore <- sapply(1:n,function(i) min(res[i,1:n]))
+grp <- sapply(1:n,function(i) which.min(res[i,1:n]))
+
+d <- data.table(u=users,g=users[grp],gn=grp,s=grpScore)
+
+
+# Cut command or cut2 from Hmisc - commits by number of commits ---
+
 
 #grid <- expand.grid(i=1:nrow(DT)-1,j=2:nrow(DT))
 #for(p in 1:nrow(grid)) {
